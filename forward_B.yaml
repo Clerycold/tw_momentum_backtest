@@ -1,0 +1,30 @@
+# 前瞻驗證預先登記：B（0050 + 大盤濾網）相對 A（0050 買進持有）
+# 這份檔案在第一次執行 scripts/run_forward.py 時鎖定雜湊（logs/forward_B_lock.json），之後任何修改都會讓程式拒絕執行。
+# 登記日：2026-10-28。前瞻期開始前（2026-11-02）沒有任何前瞻期資料，條款是在看不到結果的情況下寫定的。
+
+hypothesis: "B 的經風險調整報酬優於 A，且最大回撤不大於 A"
+origin: >
+  事後假設。B 不是開發期預先宣告的驗證對象，而是在看過 2015–2021（開發期）與 2022–2026/09（樣本外）
+  兩段結果後才提出。這兩段資料都已被看過，不得再用於驗證 B；唯一有效的證據是 2026-11-02 之後的新資料。
+
+# 策略規則完全沿用 config.yaml（樣本外鎖定版本），不得另行調整
+strategy_config_sha256: 5d8cecd78487837ff5a1db92f1c2018479f5c823a0ea520e42c673ed1084cf83
+challenger: B
+benchmark: A
+
+period:
+  forward_start: "2026-11-02"   # 第一個交易日；之前的資料只作均線暖機
+  evaluation_date: "2029-10-31" # 只在這天之後做一次判定，之後的資料不計入
+
+scenario: mid                   # A、B 只交易 ETF，三種滑價情境結果相同，取 mid 與原判準一致
+initial_capital: 1000000
+
+criterion:                      # 與開發期判準同一結構；兩項都要成立
+  sharpe: "Sharpe(B) > Sharpe(A)"
+  mdd: "|MDD(B)| <= |MDD(A)|"
+
+inconclusive_rule: >
+  若前瞻期內濾網從未轉為防守（B 曝險始終 100%），B 與 A 完全相同，結果記為「無法判定」，不算通過。
+
+interim_rule: >
+  前瞻期間可產出進度報告，但只標示為「進度」，不得提前判定通過或失敗，也不得因進度結果修改本檔或 config.yaml。

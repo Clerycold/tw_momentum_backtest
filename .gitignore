@@ -1,0 +1,14 @@
+# downloaded market data (≈250 MB, re-downloadable from FinMind / TWSE / TPEx)
+data/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# runtime logs and local state; lock files and the OOS unlock log are kept as audit evidence
+logs/*.log
+logs/*.err
+logs/signal_state.json
+
+.env

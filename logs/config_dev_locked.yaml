@@ -1,0 +1,103 @@
+# 台股「大盤濾網 + 0050 核心 + 月營收動能衛星」回測設定
+# 本檔在開發期回測完成前鎖定：第一次執行回測時會把 SHA256 寫進 logs/config_lock.json，
+# 之後每次執行都會核對，內容被改動就拒絕執行。
+
+periods:
+  dev_start: "2015-01-01"
+  dev_end: "2021-12-31"        # 樣本外 (2022-01-01 以後) 鎖定
+oos_unlocked: false            # 改成 true 並記錄雜湊後才可跑樣本外；本階段不得修改
+
+data:
+  price_start: "2014-01-01"    # 暖機：200 日均線、120 日報酬
+  revenue_start: "2012-01-01"  # 暖機：12 個月年增率平均需 24 個月營收
+  revenue_available_day: 11    # 無實際公告日 → 次月 11 日，遇非交易日順延
+  max_revenue_staleness_months: 2  # 訊號日所在月份 M，最新可用營收月份須 >= M-2，否則視為資料中斷、條件 a 不成立
+  common_stock_regex: "^[1-9][0-9]{3}$"
+  markets: [twse, tpex]
+  drop_industry: ["電子工業"]   # 與細分類重複的大類
+  industry_alias:
+    觀光事業: 觀光餐旅
+    化學生技醫療: 生技醫療業
+    其他電子類: 其他電子業
+    數位雲端類: 數位雲端
+    綠能環保類: 綠能環保
+    居家生活類: 居家生活
+    電子通路類: 電子通路業
+    運動休閒類: 運動休閒
+    農業科技業: 農業科技
+    創新版股票: 創新板股票
+    金融業: 金融保險
+
+capital_action_detection:      # 減資等無資料可解釋的跳動（使用者同意方案）
+  exchange_limits:             # 交易所實際漲跌幅（與策略的「視為漲停」判斷值不同）
+    - {until: "2015-05-31", pct: 0.07}
+    - {until: "2099-12-31", pct: 0.10}
+  excess_over_limit: 0.01      # 開盤價相對前一有效收盤的跳空超過實際漲跌幅 + 1% 才標記
+  skip_first_bars: 5           # 新上市前 5 日無漲跌幅限制，不標記
+  signal_blackout_days: 120    # 標記後 120 個交易日內不得作為新進場標的
+
+market_filter:
+  index: TAIEX
+  ma_days: 200
+  exposure_strong: 1.0
+  exposure_weak: 0.30
+
+core:
+  symbol: "0050"
+  weight_in_exposure: 0.60
+
+satellite:
+  weight_in_exposure: 0.40
+  max_positions: 8
+  unfilled_slots: cash         # 每檔固定 1/8 衛星資金；不足 8 檔的空位留現金
+  rev_short_months: 3
+  rev_long_months: 12
+  ma_days: 60
+  rs_days: 120
+  rs_entry_top_pct: 0.20
+  rs_hold_top_pct: 0.40
+  adv_days: 20
+  min_adv: 50000000            # 20 日平均成交金額 ≥ 5,000 萬元
+  max_per_industry: 3
+  min_history_bars: 120
+  rebalance_tolerance: 0.20    # 月調倉時，既有部位偏離目標權重 > 20% 才調整
+
+execution:
+  # 開盤 >= 參考價 × 上限 → 買不到；開盤 <= 參考價 × 下限 → 賣不掉，延後一日
+  # 參考價：前一日收盤；除權息/分割日用公告參考價
+  limit_regimes:
+    - {until: "2015-05-31", up: 1.065, down: 0.935}   # 2015-06-01 前漲跌幅 7%
+    - {until: "2099-12-31", up: 1.095, down: 0.905}
+  integer_shares: true
+
+costs:
+  fee_rate: 0.001425
+  fee_discount: 1.0
+  fee_min: 20
+  tax_stock: 0.003
+  tax_etf: 0.001
+  slippage_etf: 0.0005
+  slippage_scenarios: {low: 0.001, mid: 0.003, high: 0.005}
+  # 依 20 日均成交金額分級的滑價倍數；預設全部 1.0，讓情境數字與規格完全一致
+  slippage_adv_tiers:
+    - {min_adv: 0,         mult: 1.0}
+    - {min_adv: 200000000, mult: 1.0}
+    - {min_adv: 1000000000, mult: 1.0}
+
+backtest:
+  initial_capital: 1000000
+  risk_free: 0.0
+  trading_days_per_year: 252
+  strategies: [A, B, C, D, E]
+  regimes:                     # 診斷用：依 TAIEX 相對 200 日線狀態
+    slope_days: 20             # 多頭 = 收盤 > MA200 且 MA200 20 日斜率 > 0；空頭 = 收盤 < MA200 且斜率 < 0；其餘 = 盤整
+
+# 預先宣告的勝負判準（跑之前鎖定）
+success_criterion:
+  strategy: D
+  benchmark: A
+  slippage_scenario: mid
+  rules:
+    - "Sharpe(D) > Sharpe(A)  (扣除成本後)"
+    - "MDD(D) <= MDD(A)  (以回撤絕對值比較)"
+  note: "其他指標只用於診斷，不用於判定成立與否"
